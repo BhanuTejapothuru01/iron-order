@@ -12,19 +12,27 @@ import {
   ShieldCheck,
   RotateCcw,
   SlidersHorizontal,
-  ChevronDown
+  ChevronDown,
+  User,
+  LogOut,
+  Plus,
+  Store
 } from 'lucide-react';
 import type { Shop, DistanceBand } from './types';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useNearbyShops } from './hooks/useNearbyShops';
+import { useAuth } from './features/auth/AuthContext';
 import { MapView } from './components/map/MapView';
 import { ShopCard } from './components/shop/ShopCard';
 import { ShopDetailModal } from './components/shop/ShopDetailModal';
+import { AuthModal } from './features/auth/AuthModal';
+import { ShopRegistrationModal } from './components/shop/ShopRegistrationModal';
 import { Button } from './components/ui/Button';
 
 export function App() {
   const { location, isLocating, requestBrowserLocation, setManualLocation } = useGeolocation();
   const { shops, isLoading, refetch } = useNearbyShops(location.latitude, location.longitude, 20);
+  const { user, role, logout } = useAuth();
 
   // Search & Filters State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -37,9 +45,11 @@ export function App() {
   // Address search box dropdown state
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState<boolean>(false);
 
-  // Selected Shop Modal State
+  // Modal States
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState<boolean>(false);
 
   // Quick Location Presets (Major Local Areas)
   const PRESET_LOCATIONS = [
@@ -82,7 +92,7 @@ export function App() {
 
   const handleSelectShop = (shop: Shop) => {
     setSelectedShop(shop);
-    setIsModalOpen(true);
+    setIsDetailModalOpen(true);
   };
 
   return (
@@ -161,7 +171,7 @@ export function App() {
             )}
           </div>
 
-          {/* Action CTAs */}
+          {/* Action CTAs & Auth Controls */}
           <div className="flex items-center gap-2">
             <button
               onClick={requestBrowserLocation}
@@ -170,9 +180,43 @@ export function App() {
             >
               <Navigation className="w-4 h-4 text-brand-600" />
             </button>
-            <Button size="sm" variant="secondary" onClick={() => alert('Shop Partner Portal coming soon!')}>
-              Partner Login
-            </Button>
+
+            {user ? (
+              <div className="flex items-center gap-2">
+                {role === 'owner' && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setIsRegistrationModalOpen(true)}
+                    leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  >
+                    Register Shop
+                  </Button>
+                )}
+
+                <div className="hidden sm:flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 text-xs">
+                  <div className="w-6 h-6 rounded-lg bg-brand-600 text-white flex items-center justify-center font-bold">
+                    {role === 'owner' ? <Store className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                  </div>
+                  <span className="font-bold text-slate-800 max-w-[100px] truncate">{user.full_name || 'User'}</span>
+                  <span className="text-[10px] bg-brand-100 text-brand-800 font-bold px-1.5 py-0.5 rounded-md uppercase">
+                    {role}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => logout()}
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => setIsAuthModalOpen(true)}>
+                Partner Login
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -385,9 +429,24 @@ export function App() {
       {/* Shop Detail Modal Dialog */}
       <ShopDetailModal
         shop={selectedShop}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
         onReviewAdded={() => refetch()}
+      />
+
+      {/* Partner Login & Sign Up Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        initialMode="login"
+        initialRole="owner"
+      />
+
+      {/* Shop Owner Registration Modal */}
+      <ShopRegistrationModal
+        isOpen={isRegistrationModalOpen}
+        onClose={() => setIsRegistrationModalOpen(false)}
+        onShopCreated={() => refetch()}
       />
 
       {/* Footer */}
