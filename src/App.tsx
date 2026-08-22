@@ -12,7 +12,10 @@ import {
   LogOut,
   Plus,
   ShoppingBag,
-  Bell
+  Bell,
+  Grid,
+  Store,
+  ShieldCheck
 } from 'lucide-react';
 import type { Shop, DistanceBand, Order } from './types';
 import { useGeolocation } from './hooks/useGeolocation';
@@ -34,6 +37,7 @@ import { CustomerOrdersView } from './features/orders/CustomerOrdersView';
 import { ShopOwnerDashboard } from './features/shop-owner/ShopOwnerDashboard';
 import { AdminDashboard } from './features/admin/AdminDashboard';
 import { ReviewModal } from './features/orders/ReviewModal';
+import { PortalSelectorModal } from './components/portal/PortalSelectorModal';
 
 import { Button } from './components/ui/Button';
 import { searchLocations } from './lib/geocodingService';
@@ -41,7 +45,7 @@ import { searchLocations } from './lib/geocodingService';
 export function App() {
   const { location, isLocating, isGpsActive, requestBrowserLocation, setManualLocation } = useGeolocation();
   const { shops, isLoading, refetch } = useNearbyShops(location.latitude, location.longitude, 20);
-  const { user, role, logout, switchRole } = useAuth();
+  const { user, logout, switchRole } = useAuth();
 
   // Marketplace Hooks
   const cart = useCart();
@@ -51,8 +55,10 @@ export function App() {
   );
   const { notifications, unreadCount, markAsRead } = useNotifications(user?.id || 'usr-customer-1');
 
-  // Navigation View State
+  // Dedicated Portal & View State
+  const [portalMode, setPortalMode] = useState<'customer' | 'shop' | 'admin'>('customer');
   const [activeView, setActiveView] = useState<'search' | 'my_orders' | 'shop_dashboard' | 'admin_dashboard'>('search');
+  const [isPortalSelectorOpen, setIsPortalSelectorOpen] = useState<boolean>(false);
 
   // Search & Filters State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -88,6 +94,21 @@ export function App() {
   const [citySearchInput, setCitySearchInput] = useState<string>('');
   const [citySearchResults, setCitySearchResults] = useState<Array<{ name: string; displayName: string; lat: number; lng: number }>>([]);
   const [isSearchingCity, setIsSearchingCity] = useState<boolean>(false);
+
+  // Switch Portal Handler
+  const handleSelectPortal = (targetPortal: 'customer' | 'shop' | 'admin') => {
+    setPortalMode(targetPortal);
+    if (targetPortal === 'customer') {
+      switchRole('customer');
+      setActiveView('search');
+    } else if (targetPortal === 'shop') {
+      switchRole('owner');
+      setActiveView('shop_dashboard');
+    } else if (targetPortal === 'admin') {
+      switchRole('admin');
+      setActiveView('admin_dashboard');
+    }
+  };
 
   // Quick Location Presets Grouped by Major Cities & Areas
   const PRESET_CITIES = [
@@ -275,13 +296,13 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
-      {/* Top Navbar */}
+      {/* Top Navbar Header tailored for Active Portal Mode */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          {/* Logo & Brand */}
+          {/* Logo & Portal Identity */}
           <div
             className="flex items-center gap-2.5 cursor-pointer"
-            onClick={() => setActiveView('search')}
+            onClick={() => handleSelectPortal('customer')}
           >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-500 text-white flex items-center justify-center shadow-lg shadow-brand-500/25">
               <Shirt className="w-6 h-6 animate-pulse" />
@@ -291,59 +312,69 @@ export function App() {
                 <span className="text-xl font-black tracking-tight bg-gradient-to-r from-slate-900 via-brand-950 to-brand-700 bg-clip-text text-transparent">
                   Iron Order
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded-md border border-emerald-200">
-                  Marketplace
+                <span className={`text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded-md border ${
+                  portalMode === 'customer'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : portalMode === 'shop'
+                    ? 'bg-blue-50 text-blue-800 border-blue-200'
+                    : 'bg-purple-50 text-purple-800 border-purple-200'
+                }`}>
+                  {portalMode === 'customer' ? 'Customer Portal' : portalMode === 'shop' ? 'Shop Partner Portal' : 'Admin Console'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
-                Local Steam Ironing & Laundromat Marketplace
+                {portalMode === 'customer'
+                  ? 'Local Steam Ironing & Laundromat Marketplace'
+                  : portalMode === 'shop'
+                  ? 'Partner Shop Order Fulfillment Hub'
+                  : 'Platform Master Control & Settlement Plane'}
               </p>
             </div>
           </div>
 
-          {/* Navigation Role Tabs */}
-          <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
-            <button
-              onClick={() => setActiveView('search')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                activeView === 'search' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🔍 Find Shops
-            </button>
-            <button
-              onClick={() => setActiveView('my_orders')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
-                activeView === 'my_orders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>📦 My Orders</span>
-              {customerOrders.length > 0 && (
-                <span className="bg-brand-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
-                  {customerOrders.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveView('shop_dashboard')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                activeView === 'shop_dashboard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🏬 Shop Owner Dashboard
-            </button>
-            <button
-              onClick={() => setActiveView('admin_dashboard')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                activeView === 'admin_dashboard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🛡️ Admin Console
-            </button>
-          </div>
+          {/* Navigation Links based on Portal Mode */}
+          {portalMode === 'customer' && (
+            <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+              <button
+                onClick={() => setActiveView('search')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  activeView === 'search' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🔍 Find Shops
+              </button>
+              <button
+                onClick={() => setActiveView('my_orders')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                  activeView === 'my_orders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📦 My Orders</span>
+                {customerOrders.length > 0 && (
+                  <span className="bg-brand-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                    {customerOrders.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
 
-          {/* Location Selector Bar */}
-          {activeView === 'search' && (
+          {portalMode === 'shop' && (
+            <div className="hidden lg:flex items-center gap-2 text-xs font-extrabold text-blue-800 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200">
+              <Store className="w-4 h-4 text-blue-600" />
+              <span>Partner Shop Owner Portal Active</span>
+            </div>
+          )}
+
+          {portalMode === 'admin' && (
+            <div className="hidden lg:flex items-center gap-2 text-xs font-extrabold text-purple-800 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
+              <ShieldCheck className="w-4 h-4 text-purple-600" />
+              <span>Platform Administration Console Active</span>
+            </div>
+          )}
+
+          {/* Location Selector Bar (Only in Customer Portal Search View) */}
+          {portalMode === 'customer' && activeView === 'search' && (
             <div className="relative flex-1 max-w-md hidden md:block">
               <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
                 <button
@@ -491,10 +522,20 @@ export function App() {
             </div>
           )}
 
-          {/* Right Action Controls: Cart, Notifications, Auth */}
+          {/* Right Action Controls: Portal Switcher, Cart, Notifications, Auth */}
           <div className="flex items-center gap-2">
-            {/* Cart Button */}
-            {cart.itemCount > 0 && (
+            {/* PORTAL SWITCHER GATEWAY BUTTON */}
+            <button
+              onClick={() => setIsPortalSelectorOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md shadow-slate-900/10 transition-all hover:scale-105"
+              title="Switch portal experience (Customer, Shop Owner, Admin)"
+            >
+              <Grid className="w-4 h-4 text-brand-400" />
+              <span className="hidden sm:inline">Switch Portal</span>
+            </button>
+
+            {/* Cart Button (Customer Portal) */}
+            {portalMode === 'customer' && cart.itemCount > 0 && (
               <button
                 onClick={() => setIsCheckoutOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs shadow-md shadow-brand-500/25 transition-all hover:scale-105"
@@ -556,36 +597,16 @@ export function App() {
               )}
             </div>
 
-            {/* Quick Role Switcher for Testing Marketplace */}
-            <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[10px] font-extrabold">
-              <button
-                onClick={() => { switchRole('customer'); setActiveView('search'); }}
-                className={`px-2 py-1 rounded-lg ${role === 'customer' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              >
-                Customer
-              </button>
-              <button
-                onClick={() => { switchRole('owner'); setActiveView('shop_dashboard'); }}
-                className={`px-2 py-1 rounded-lg ${role === 'owner' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              >
-                Owner
-              </button>
-              <button
-                onClick={() => { switchRole('admin'); setActiveView('admin_dashboard'); }}
-                className={`px-2 py-1 rounded-lg ${role === 'admin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              >
-                Admin
-              </button>
-            </div>
-
             {/* Auth / Register Partner CTA */}
-            <button
-              onClick={() => setIsRegistrationModalOpen(true)}
-              className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 font-bold text-xs hover:bg-brand-100 transition-colors border border-brand-200"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Register Shop</span>
-            </button>
+            {portalMode === 'customer' && (
+              <button
+                onClick={() => setIsRegistrationModalOpen(true)}
+                className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 font-bold text-xs hover:bg-brand-100 transition-colors border border-brand-200"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Register Shop</span>
+              </button>
+            )}
 
             {user ? (
               <button
@@ -608,8 +629,19 @@ export function App() {
         </div>
       </header>
 
-      {/* Main App Body Views */}
-      {activeView === 'my_orders' && (
+      {/* Main App Body Views Rendered According to Active Portal Mode */}
+      {portalMode === 'shop' && (
+        <ShopOwnerDashboard
+          ownerId={user?.id || 'usr-owner-1'}
+          onBackToSearch={() => handleSelectPortal('customer')}
+        />
+      )}
+
+      {portalMode === 'admin' && (
+        <AdminDashboard onBackToSearch={() => handleSelectPortal('customer')} />
+      )}
+
+      {portalMode === 'customer' && activeView === 'my_orders' && (
         <CustomerOrdersView
           orders={customerOrders}
           isLoading={isLoadingOrders}
@@ -618,18 +650,7 @@ export function App() {
         />
       )}
 
-      {activeView === 'shop_dashboard' && (
-        <ShopOwnerDashboard
-          ownerId={user?.id || 'usr-owner-1'}
-          onBackToSearch={() => setActiveView('search')}
-        />
-      )}
-
-      {activeView === 'admin_dashboard' && (
-        <AdminDashboard onBackToSearch={() => setActiveView('search')} />
-      )}
-
-      {activeView === 'search' && (
+      {portalMode === 'customer' && activeView === 'search' && (
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6">
           {/* Search Input Bar */}
           <div className="relative">
@@ -784,6 +805,14 @@ export function App() {
           )}
         </main>
       )}
+
+      {/* Portal Gateway Selector Modal */}
+      <PortalSelectorModal
+        isOpen={isPortalSelectorOpen}
+        onClose={() => setIsPortalSelectorOpen(false)}
+        currentPortal={portalMode}
+        onSelectPortal={handleSelectPortal}
+      />
 
       {/* Modals Integration */}
       <ShopDetailModal
