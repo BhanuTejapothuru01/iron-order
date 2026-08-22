@@ -4,7 +4,6 @@ import {
   Search,
   Filter,
   Navigation,
-  Sparkles,
   Map as MapIcon,
   List as ListIcon,
   Shirt,
@@ -632,35 +631,16 @@ export function App() {
 
       {activeView === 'search' && (
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6">
-          {/* Hero Banner & Search Bar */}
-          <div className="bg-gradient-to-r from-slate-900 via-brand-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
-            <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-500/20 via-transparent to-transparent pointer-events-none" />
-
-            <div className="max-w-2xl relative z-10 space-y-4">
-              <div className="inline-flex items-center gap-2 bg-brand-500/20 text-brand-300 border border-brand-500/30 px-3 py-1 rounded-full text-xs font-bold">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Instant Ironing & Steam Press Marketplace</span>
-              </div>
-
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
-                Find Local Ironing Shops & Order Steam Press Online
-              </h1>
-              <p className="text-slate-300 text-xs sm:text-sm font-medium">
-                Connect directly with verified local steam press providers, dhobi ghats, and laundromats. Get doorstep pickup & crisp turnaround.
-              </p>
-
-              {/* Main Search Input */}
-              <div className="relative pt-2">
-                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-5 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search shop name, locality, or service (e.g. Steam Press, Saree, Suit)..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full text-sm pl-12 pr-4 py-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-400 font-medium shadow-inner"
-                />
-              </div>
-            </div>
+          {/* Search Input Bar */}
+          <div className="relative">
+            <Search className="w-5 h-5 text-slate-400 absolute left-4 top-3.5 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search shop name, locality, or service (e.g. Steam Press, Saree, Suit)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-sm pl-12 pr-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium shadow-sm"
+            />
           </div>
 
           {/* Filter Bar Controls */}
