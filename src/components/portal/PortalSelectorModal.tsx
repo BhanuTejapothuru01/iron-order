@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Store, ShieldCheck, ArrowRight, X } from 'lucide-react';
+import { ShoppingBag, Store, ArrowRight, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import type { UserRole } from '../../types';
 
@@ -7,7 +7,7 @@ interface PortalSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentPortal: 'customer' | 'shop' | 'admin';
-  onSelectPortal: (portal: 'customer' | 'shop' | 'admin') => void;
+  onSelectPortal: (portal: 'customer' | 'shop') => void;
 }
 
 export const PortalSelectorModal: React.FC<PortalSelectorModalProps> = ({
@@ -19,7 +19,7 @@ export const PortalSelectorModal: React.FC<PortalSelectorModalProps> = ({
   if (!isOpen) return null;
 
   const PORTALS: Array<{
-    id: 'customer' | 'shop' | 'admin';
+    id: 'customer' | 'shop';
     role: UserRole;
     title: string;
     badge: string;
@@ -51,21 +51,10 @@ export const PortalSelectorModal: React.FC<PortalSelectorModalProps> = ({
       features: ['Live incoming order queue', 'Accept / Reject & Status stepper', 'Service catalog CRUD & pricing', 'Earnings & 10% commission accounting'],
       gradient: 'from-blue-50 to-indigo-50/40 border-blue-200 hover:border-blue-400',
     },
-    {
-      id: 'admin',
-      role: 'admin',
-      title: 'Platform Admin Console Portal',
-      badge: 'For Platform Admins',
-      badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
-      icon: <ShieldCheck className="w-6 h-6 text-purple-600" />,
-      description: 'Control platform operations, approve/reject partner shops, audit global transactions, & settle commissions.',
-      features: ['Platform GMV & revenue analytics', 'Partner shop onboard approvals', 'Global orders audit ledger', 'Commission settlement bookkeeping'],
-      gradient: 'from-purple-50 to-slate-50 border-purple-200 hover:border-purple-400',
-    },
   ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="lg">
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="md">
       <div className="space-y-5 p-1">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -83,7 +72,7 @@ export const PortalSelectorModal: React.FC<PortalSelectorModalProps> = ({
           </button>
         </div>
 
-        {/* Portals Cards */}
+        {/* Portals Cards (Only Customer & Shop Owner shown publicly) */}
         <div className="grid grid-cols-1 gap-3.5">
           {PORTALS.map((portal) => {
             const isActive = currentPortal === portal.id;

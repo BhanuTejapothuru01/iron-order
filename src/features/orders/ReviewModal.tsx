@@ -5,6 +5,8 @@ import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { mockDatabase, isRealSupabaseConfigured, supabase } from '../../lib/supabase';
 
+import { sanitizeInput } from '../../lib/security';
+
 interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,6 +30,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
     e.preventDefault();
     if (!comment.trim()) return;
 
+    const cleanComment = sanitizeInput(comment);
     setIsSubmitting(true);
     try {
       if (isRealSupabaseConfigured && supabase) {
@@ -36,8 +39,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           customer_id: order.customer_id,
           order_id: order.id,
           rating,
-          comment: comment.trim(),
-          customer_name: order.customer_name
+          comment: cleanComment,
+          customer_name: sanitizeInput(order.customer_name)
         });
       } else {
         await mockDatabase.addReview({
@@ -45,8 +48,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           customer_id: order.customer_id,
           order_id: order.id,
           rating,
-          comment: comment.trim(),
-          customer_name: order.customer_name
+          comment: cleanComment,
+          customer_name: sanitizeInput(order.customer_name)
         });
       }
       if (onReviewSubmitted) onReviewSubmitted();

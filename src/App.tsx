@@ -15,7 +15,8 @@ import {
   Bell,
   Grid,
   Store,
-  ShieldCheck
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 import type { Shop, DistanceBand, Order } from './types';
 import { useGeolocation } from './hooks/useGeolocation';
@@ -898,6 +899,33 @@ export function App() {
         onClose={() => setIsAdminLoginOpen(false)}
         onSuccess={handleAdminLoginSuccess}
       />
+
+      {/* Secure App Footer */}
+      <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div>
+            <span className="font-extrabold text-slate-900">Iron Order</span> • Local Steam Press & Ironing Marketplace
+          </div>
+          <div className="flex items-center gap-4 text-slate-400">
+            <span>© 2026 Iron Order</span>
+            <button
+              onClick={() => {
+                if (isAdminAuthenticated || user?.email === 'tejapothuru94413@gmail.com') {
+                  setPortalMode('admin');
+                  setActiveView('admin_dashboard');
+                } else {
+                  setIsAdminLoginOpen(true);
+                }
+              }}
+              className="hover:text-purple-600 font-semibold transition-colors flex items-center gap-1 text-[11px]"
+              title="Restricted Admin Master Sign In"
+            >
+              <Lock className="w-3 h-3 text-slate-400 hover:text-purple-600" />
+              <span>Admin Access</span>
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

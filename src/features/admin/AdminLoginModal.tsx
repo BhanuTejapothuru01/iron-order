@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, KeyRound, AlertCircle, X, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Mail, KeyRound, AlertCircle, X, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
+import { MASTER_ADMIN_EMAIL, verifyAdminPassword, adminLoginRateLimiter } from '../../lib/security';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -9,35 +10,53 @@ interface AdminLoginModalProps {
   onSuccess: () => void;
 }
 
-export const ADMIN_MASTER_EMAIL = 'tejapothuru94413@gmail.com';
-export const ADMIN_MASTER_PASS = 'Teja@602142';
-
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
 }) => {
-  const [email, setEmail] = useState<string>(ADMIN_MASTER_EMAIL);
+  const [email, setEmail] = useState<string>(MASTER_ADMIN_EMAIL);
   const [password, setPassword] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    // Check Rate Limiter
+    const rateCheck = adminLoginRateLimiter.checkAllowed();
+    if (!rateCheck.allowed) {
+      setErrorMsg(`Too many failed attempts. Account locked for security. Try again in ${rateCheck.remainingSeconds}s.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      if (email.trim().toLowerCase() === ADMIN_MASTER_EMAIL.toLowerCase() && password === ADMIN_MASTER_PASS) {
+    try {
+      const isValidEmail = email.trim().toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
+      const isValidPass = await verifyAdminPassword(password);
+
+      if (isValidEmail && isValidPass) {
+        adminLoginRateLimiter.reset();
         setIsSubmitting(false);
+        setPassword('');
         onSuccess();
       } else {
+        const lockRes = adminLoginRateLimiter.recordFailedAttempt();
         setIsSubmitting(false);
-        setErrorMsg('Invalid Master Admin Credentials. Access Denied.');
+        if (lockRes.locked) {
+          setErrorMsg('5 failed attempts detected. Admin login temporarily locked for 5 minutes for security protection.');
+        } else {
+          setErrorMsg('Invalid Master Admin Credentials. Access Denied.');
+        }
       }
-    }, 400);
+    } catch (err) {
+      setIsSubmitting(false);
+      setErrorMsg('Authentication error. Access Denied.');
+    }
   };
 
   return (
@@ -51,12 +70,12 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="font-extrabold text-base text-slate-900">Admin Portal Authentication</h3>
+                <h3 className="font-extrabold text-base text-slate-900">Admin Portal Gate</h3>
                 <span className="text-[10px] font-extrabold uppercase bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
-                  Restricted
+                  Protected
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium">Master Administrator Sign In</p>
+              <p className="text-xs text-slate-500 font-medium">Encrypted Master Sign In</p>
             </div>
           </div>
 
@@ -101,19 +120,19 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password..."
+                placeholder="Enter admin password..."
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
               />
               <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
             </div>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
-            <div className="font-bold text-slate-800 flex items-center gap-1">
-              <Lock className="w-3.5 h-3.5 text-purple-600" />
-              <span>Security Protection Active</span>
+          <div className="bg-purple-50/60 p-3 rounded-xl border border-purple-200/80 text-[11px] text-purple-900 space-y-1">
+            <div className="font-bold flex items-center gap-1">
+              <ShieldAlert className="w-3.5 h-3.5 text-purple-700" />
+              <span>SHA-256 Crypto Security & Brute-Force Shield Active</span>
             </div>
-            <p>Only verified administrators with valid master credentials can access shop approvals, platform commission settlements, and global order audits.</p>
+            <p>Admin master password is verified using SHA-256 cryptographic hashes. Multi-attempt lockout protection active.</p>
           </div>
 
           <Button
@@ -122,7 +141,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>UNLOCK ADMIN CONSOLE</span>
+            <span>AUTHENTICATE & UNLOCK ADMIN CONSOLE</span>
           </Button>
         </form>
       </div>
