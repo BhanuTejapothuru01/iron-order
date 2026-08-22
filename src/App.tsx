@@ -767,7 +767,19 @@ export function App() {
             </div>
           ) : filteredShops.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Shop Cards Column */}
+              {/* Left Map View Column */}
+              {(viewMode === 'split' || viewMode === 'map') && (
+                <div className={`${viewMode === 'split' ? 'lg:col-span-6' : 'lg:col-span-12'} sticky top-24 h-[650px] rounded-3xl overflow-hidden shadow-md border border-slate-200`}>
+                  <MapView
+                    userLocation={location}
+                    shops={filteredShops}
+                    selectedShopId={selectedShop?.id}
+                    onSelectShop={handleSelectShop}
+                  />
+                </div>
+              )}
+
+              {/* Right Shop Cards Column (Single Column per row) */}
               {(viewMode === 'split' || viewMode === 'list') && (
                 <div className={`${viewMode === 'split' ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-4`}>
                   <div className="flex items-center justify-between px-1">
@@ -776,7 +788,7 @@ export function App() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     {filteredShops.map((shop) => (
                       <ShopCard
                         key={shop.id}
@@ -785,18 +797,6 @@ export function App() {
                       />
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Right Map View Column */}
-              {(viewMode === 'split' || viewMode === 'map') && (
-                <div className={`${viewMode === 'split' ? 'lg:col-span-6' : 'lg:col-span-12'} sticky top-24 h-[600px] rounded-3xl overflow-hidden shadow-md border border-slate-200`}>
-                  <MapView
-                    userLocation={location}
-                    shops={filteredShops}
-                    selectedShopId={selectedShop?.id}
-                    onSelectShop={handleSelectShop}
-                  />
                 </div>
               )}
             </div>
