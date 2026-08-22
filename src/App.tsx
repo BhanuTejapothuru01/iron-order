@@ -36,6 +36,7 @@ import { OrderTrackingModal } from './features/orders/OrderTrackingModal';
 import { CustomerOrdersView } from './features/orders/CustomerOrdersView';
 import { ShopOwnerDashboard } from './features/shop-owner/ShopOwnerDashboard';
 import { AdminDashboard } from './features/admin/AdminDashboard';
+import { AdminLoginModal } from './features/admin/AdminLoginModal';
 import { ReviewModal } from './features/orders/ReviewModal';
 import { PortalSelectorModal } from './components/portal/PortalSelectorModal';
 
@@ -45,7 +46,7 @@ import { searchLocations } from './lib/geocodingService';
 export function App() {
   const { location, isLocating, isGpsActive, requestBrowserLocation, setManualLocation } = useGeolocation();
   const { shops, isLoading, refetch } = useNearbyShops(location.latitude, location.longitude, 20);
-  const { user, logout, switchRole } = useAuth();
+  const { user, login, logout, switchRole } = useAuth();
 
   // Marketplace Hooks
   const cart = useCart();
@@ -95,8 +96,17 @@ export function App() {
   const [citySearchResults, setCitySearchResults] = useState<Array<{ name: string; displayName: string; lat: number; lng: number }>>([]);
   const [isSearchingCity, setIsSearchingCity] = useState<boolean>(false);
 
+  // Admin Auth Gate State
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(false);
+
   // Switch Portal Handler
   const handleSelectPortal = (targetPortal: 'customer' | 'shop' | 'admin') => {
+    if (targetPortal === 'admin' && !isAdminAuthenticated && user?.email !== 'tejapothuru94413@gmail.com') {
+      setIsAdminLoginOpen(true);
+      return;
+    }
+
     setPortalMode(targetPortal);
     if (targetPortal === 'customer') {
       switchRole('customer');
@@ -108,6 +118,15 @@ export function App() {
       switchRole('admin');
       setActiveView('admin_dashboard');
     }
+  };
+
+  const handleAdminLoginSuccess = async () => {
+    setIsAdminAuthenticated(true);
+    setIsAdminLoginOpen(false);
+    await login('tejapothuru94413@gmail.com', 'Teja@602142');
+    setPortalMode('admin');
+    switchRole('admin');
+    setActiveView('admin_dashboard');
   };
 
   // Quick Location Presets Grouped by Major Cities & Areas
@@ -872,6 +891,12 @@ export function App() {
         isOpen={isRegistrationModalOpen}
         onClose={() => setIsRegistrationModalOpen(false)}
         onShopCreated={() => refetch()}
+      />
+
+      <AdminLoginModal
+        isOpen={isAdminLoginOpen}
+        onClose={() => setIsAdminLoginOpen(false)}
+        onSuccess={handleAdminLoginSuccess}
       />
     </div>
   );

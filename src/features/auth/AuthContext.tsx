@@ -74,14 +74,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let name = 'Customer User';
       let id = `usr-${Date.now()}`;
 
-      if (email.includes('owner')) {
+      if (email.toLowerCase() === 'tejapothuru94413@gmail.com' || email.includes('admin')) {
+        targetRole = 'admin';
+        name = 'Teja Pothuru (Master Admin)';
+        id = 'usr-admin-1';
+      } else if (email.includes('owner')) {
         targetRole = 'owner';
         name = 'Rajesh Kumar (Owner)';
         id = 'usr-owner-1';
-      } else if (email.includes('admin')) {
-        targetRole = 'admin';
-        name = 'System Admin';
-        id = 'usr-admin-1';
       }
 
       const mockUser: Profile = {
