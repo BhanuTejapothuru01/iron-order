@@ -67,6 +67,9 @@ export interface Shop {
   photos?: ShopPhoto[];
   services?: ShopService[];
   hours?: ShopHours[];
+  is_osm?: boolean;
+  source?: 'partner' | 'osm';
+  shop_type?: 'ironing' | 'steam_press' | 'laundry' | 'dry_clean' | 'dhobi_ghat';
 }
 
 export interface UserLocation {

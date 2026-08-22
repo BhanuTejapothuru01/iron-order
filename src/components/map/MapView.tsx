@@ -63,11 +63,18 @@ export const MapView: React.FC<MapViewProps> = ({
     // Create markers for each shop
     shops.forEach(shop => {
       const isSelected = shop.id === selectedShopId;
+      const isOsm = shop.is_osm;
+
+      const bgColor = isSelected
+        ? 'bg-brand-600 scale-110 shadow-glow'
+        : isOsm
+        ? 'bg-indigo-700'
+        : 'bg-slate-900';
 
       const shopIcon = L.divIcon({
         className: 'custom-shop-marker',
-        html: `<div class="px-2.5 py-1 ${isSelected ? 'bg-brand-600 scale-110 shadow-glow' : 'bg-slate-900'} text-white rounded-full text-xs font-bold shadow-lg border-2 border-white flex items-center gap-1 cursor-pointer hover:scale-110 transition-transform">
-                <span>🧺</span>
+        html: `<div class="px-2.5 py-1 ${bgColor} text-white rounded-full text-xs font-bold shadow-lg border-2 border-white flex items-center gap-1 cursor-pointer hover:scale-110 transition-transform">
+                <span>${isOsm ? '📍' : '🧺'}</span>
                 <span>₹${shop.min_price || 15}</span>
                </div>`,
         iconSize: [60, 26],
@@ -90,14 +97,18 @@ export const MapView: React.FC<MapViewProps> = ({
       <div ref={mapContainerRef} className="w-full h-full min-h-[350px] z-0" />
 
       {/* Map legend overlay */}
-      <div className="absolute bottom-3 left-3 z-10 glass-panel px-3 py-2 rounded-xl text-xs font-medium text-slate-700 flex items-center gap-3">
+      <div className="absolute bottom-3 left-3 z-10 glass-panel px-3 py-2 rounded-xl text-xs font-medium text-slate-700 flex items-center gap-3 flex-wrap shadow-md">
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full bg-brand-500 border-2 border-white inline-block"></span>
-          <span>You</span>
+          <span>Your Location</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full bg-slate-900 border-2 border-white inline-block"></span>
-          <span>Ironing Shop</span>
+          <span>Verified Partner</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-indigo-700 border-2 border-white inline-block"></span>
+          <span>OSM Real Shop</span>
         </div>
       </div>
     </div>

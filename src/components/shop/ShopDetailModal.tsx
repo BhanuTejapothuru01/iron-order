@@ -144,6 +144,16 @@ export const ShopDetailModal: React.FC<ShopDetailModalProps> = ({
                 {openStatus.statusText}
               </Badge>
 
+              {shop.is_osm ? (
+                <Badge variant="slate" size="sm">
+                  OSM Real Shop
+                </Badge>
+              ) : (
+                <Badge variant="blue" size="sm">
+                  Verified Partner
+                </Badge>
+              )}
+
               {shop.distance_km !== undefined && (
                 <div className="bg-slate-900/80 backdrop-blur-md text-slate-200 text-xs font-semibold px-2.5 py-1 rounded-md flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-brand-400" />

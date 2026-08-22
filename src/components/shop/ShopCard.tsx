@@ -63,6 +63,15 @@ export const ShopCard: React.FC<ShopCardProps> = ({ shop, onSelect }) => {
 
           {/* Capabilities Badges */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
+            {shop.is_osm ? (
+              <Badge variant="slate" size="sm">
+                OSM Real Shop
+              </Badge>
+            ) : (
+              <Badge variant="green" size="sm">
+                Verified Partner
+              </Badge>
+            )}
             {shop.pickup_available && (
               <Badge variant="blue" size="sm" icon={<Truck className="w-3 h-3" />}>
                 Pickup
