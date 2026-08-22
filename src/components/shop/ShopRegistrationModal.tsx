@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Store, MapPin, Phone, MessageSquare, Truck, ShieldCheck, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { Store, MapPin, Phone, MessageSquare, Truck, ShieldCheck, Plus, Trash2, CheckCircle2, Navigation } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { LocationPickerModal } from '../map/LocationPickerModal';
 import { mockDatabase, isRealSupabaseConfigured, supabase } from '../../lib/supabase';
 import { useAuth } from '../../features/auth/AuthContext';
 
@@ -25,8 +26,10 @@ export const ShopRegistrationModal: React.FC<ShopRegistrationModalProps> = ({
   const [phone, setPhone] = useState<string>('');
   const [whatsapp, setWhatsapp] = useState<string>('');
 
-  const [latitude] = useState<number>(12.9716);
-  const [longitude] = useState<number>(77.5946);
+  const [latitude, setLatitude] = useState<number>(12.9716);
+  const [longitude, setLongitude] = useState<number>(77.5946);
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState<boolean>(false);
+  const [hasCustomLocation, setHasCustomLocation] = useState<boolean>(false);
 
   const [pickupAvailable, setPickupAvailable] = useState<boolean>(true);
   const [deliveryAvailable, setDeliveryAvailable] = useState<boolean>(true);
@@ -158,14 +161,24 @@ export const ShopRegistrationModal: React.FC<ShopRegistrationModalProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Address *"
-              placeholder="e.g. 12 Brigade Road, Bangalore"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-              leftIcon={<MapPin className="w-4 h-4" />}
-            />
+            <div>
+              <Input
+                label="Address *"
+                placeholder="e.g. 12 Brigade Road, Bangalore"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                required
+                leftIcon={<MapPin className="w-4 h-4" />}
+              />
+              <button
+                type="button"
+                onClick={() => setIsLocationPickerOpen(true)}
+                className="mt-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1.5 transition-colors"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                <span>{hasCustomLocation ? '📍 Location Pinned (Change on Map)' : '🗺️ Pick Exact Location on Google/Apple Maps'}</span>
+              </button>
+            </div>
 
             <Input
               label="WhatsApp Number"
@@ -266,6 +279,20 @@ export const ShopRegistrationModal: React.FC<ShopRegistrationModalProps> = ({
             </Button>
           </div>
         </form>
+
+        <LocationPickerModal
+          isOpen={isLocationPickerOpen}
+          onClose={() => setIsLocationPickerOpen(false)}
+          initialLat={latitude}
+          initialLng={longitude}
+          initialAddress={address}
+          onSelectLocation={(loc) => {
+            setLatitude(loc.lat);
+            setLongitude(loc.lng);
+            setAddress(loc.address);
+            setHasCustomLocation(true);
+          }}
+        />
       </div>
     </Modal>
   );

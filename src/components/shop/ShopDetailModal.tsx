@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Phone, MessageSquare, Truck, ShieldCheck, Clock, Star, Send, X, Calendar, DollarSign } from 'lucide-react';
+import { MapPin, Phone, MessageSquare, Truck, ShieldCheck, Clock, Star, Send, X, Calendar, DollarSign, ExternalLink } from 'lucide-react';
 import type { Shop, Review } from '../../types';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { computeOpenStatus, formatHourString, DAY_NAMES } from '../../lib/hours';
 import { mockDatabase, isRealSupabaseConfigured, supabase } from '../../lib/supabase';
+import { getGoogleMapsUrl, getAppleMapsUrl } from '../../lib/mapbox';
 
 interface ShopDetailModalProps {
   shop: Shop | null;
@@ -175,9 +176,31 @@ export const ShopDetailModal: React.FC<ShopDetailModalProps> = ({
               {shop.description || 'Professional steam pressing & ironing services with care.'}
             </p>
             {shop.address && (
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                <MapPin className="w-4 h-4 text-brand-500 flex-shrink-0" />
-                <span>{shop.address}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-medium text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-brand-500 flex-shrink-0" />
+                  <span className="line-clamp-1">{shop.address}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    href={getGoogleMapsUrl(shop.latitude, shop.longitude, `${shop.name}, ${shop.address}`)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <span>Google Maps</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href={getAppleMapsUrl(shop.latitude, shop.longitude, `${shop.name}, ${shop.address}`)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 hover:bg-slate-300 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <span>Apple Maps</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
             )}
           </div>

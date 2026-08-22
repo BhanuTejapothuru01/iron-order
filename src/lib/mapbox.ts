@@ -47,3 +47,32 @@ export async function geocodeSearch(query: string): Promise<Array<{ label: strin
     return [];
   }
 }
+
+// Reverse Geocoding helper (coordinates to address)
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+    const data = await res.json();
+    if (data && data.display_name) {
+      return data.display_name;
+    }
+  } catch (e) {
+    console.warn('Reverse geocoding error:', e);
+  }
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+// Google Maps URL generator for external navigation
+export function getGoogleMapsUrl(lat: number, lng: number, label?: string): string {
+  if (label) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
+
+// Apple Maps URL generator for external navigation
+export function getAppleMapsUrl(lat: number, lng: number, label?: string): string {
+  const queryStr = label ? encodeURIComponent(label) : 'Shop Location';
+  return `https://maps.apple.com/?q=${queryStr}&ll=${lat},${lng}`;
+}
+

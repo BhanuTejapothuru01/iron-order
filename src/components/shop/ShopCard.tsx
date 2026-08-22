@@ -1,10 +1,11 @@
 import React from 'react';
-import { MapPin, Phone, MessageSquare, Truck, ShieldCheck, ArrowRight } from 'lucide-react';
+import { MapPin, Phone, MessageSquare, Truck, ShieldCheck, ArrowRight, ExternalLink } from 'lucide-react';
 import type { Shop } from '../../types';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { RatingStars } from '../ui/RatingStars';
 import { computeOpenStatus } from '../../lib/hours';
+import { getGoogleMapsUrl } from '../../lib/mapbox';
 
 interface ShopCardProps {
   shop: Shop;
@@ -106,6 +107,16 @@ export const ShopCard: React.FC<ShopCardProps> = ({ shop, onSelect }) => {
                 <MessageSquare className="w-4 h-4" />
               </a>
             )}
+            <a
+              href={getGoogleMapsUrl(shop.latitude, shop.longitude, `${shop.name}, ${shop.address}`)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors"
+              title="Open location in Google Maps"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
             <button className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1 ml-1 group-hover:translate-x-0.5 transition-transform">
               Details <ArrowRight className="w-3.5 h-3.5" />
             </button>
