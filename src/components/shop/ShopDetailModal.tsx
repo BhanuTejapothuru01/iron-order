@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Phone, MessageSquare, Truck, ShieldCheck, Clock, Star, Send, X, Calendar, DollarSign, ExternalLink } from 'lucide-react';
-import type { Shop, Review } from '../../types';
+import { MapPin, Phone, MessageSquare, Truck, ShieldCheck, Clock, Star, Send, X, Calendar, DollarSign, ExternalLink, Plus, Minus, ShoppingBag } from 'lucide-react';
+import type { Shop, Review, ShopService } from '../../types';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
 import { RatingStars } from '../ui/RatingStars';
@@ -15,6 +15,12 @@ interface ShopDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onReviewAdded?: () => void;
+  onAddToCart?: (shop: Shop, service: ShopService) => void;
+  onUpdateQty?: (serviceId: string, qty: number) => void;
+  getQty?: (serviceId: string) => number;
+  cartSubtotal?: number;
+  cartItemCount?: number;
+  onOpenCheckout?: () => void;
 }
 
 export const ShopDetailModal: React.FC<ShopDetailModalProps> = ({
@@ -22,6 +28,12 @@ export const ShopDetailModal: React.FC<ShopDetailModalProps> = ({
   isOpen,
   onClose,
   onReviewAdded,
+  onAddToCart,
+  onUpdateQty,
+  getQty,
+  cartSubtotal = 0,
+  cartItemCount = 0,
+  onOpenCheckout,
 }) => {
   const [activeTab, setActiveTab] = useState<'services' | 'hours' | 'reviews'>('services');
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -266,7 +278,7 @@ export const ShopDetailModal: React.FC<ShopDetailModalProps> = ({
               }`}
             >
               <DollarSign className="w-4 h-4" />
-              <span>Services & Prices</span>
+              <span>Services & Rates</span>
             </button>
 
             <button
@@ -294,27 +306,58 @@ export const ShopDetailModal: React.FC<ShopDetailModalProps> = ({
             </button>
           </div>
 
-          {/* Tab Content: Services & Rates */}
+          {/* Tab Content: Services & Rates with Cart Qty Counters */}
           {activeTab === 'services' && (
             <div className="space-y-3">
               {shop.services && shop.services.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {shop.services.map((service) => (
-                    <div
-                      key={service.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-sm">
-                          👔
+                  {shop.services.map((service) => {
+                    const qty = getQty ? getQty(service.id) : 0;
+
+                    return (
+                      <div
+                        key={service.id}
+                        className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-sm">
+                            👔
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold text-slate-800 block">{service.service_name}</span>
+                            <span className="text-xs font-extrabold text-slate-900">₹{service.price}</span>
+                          </div>
                         </div>
-                        <span className="text-xs font-semibold text-slate-800">{service.service_name}</span>
+
+                        {/* Quantity Counter Control */}
+                        {qty > 0 ? (
+                          <div className="flex items-center gap-2 bg-brand-600 text-white rounded-xl px-2 py-1 shadow-sm">
+                            <button
+                              onClick={() => onUpdateQty && onUpdateQty(service.id, qty - 1)}
+                              className="p-1 hover:bg-brand-700 rounded-lg transition-colors"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="font-extrabold text-xs px-1">{qty}</span>
+                            <button
+                              onClick={() => onAddToCart && onAddToCart(shop, service)}
+                              className="p-1 hover:bg-brand-700 rounded-lg transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => onAddToCart && onAddToCart(shop, service)}
+                            className="px-3 py-1.5 rounded-xl bg-white border border-brand-300 text-brand-700 font-extrabold text-xs hover:bg-brand-50 shadow-sm flex items-center gap-1 transition-all hover:scale-105"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-brand-600" />
+                            <span>ADD</span>
+                          </button>
+                        )}
                       </div>
-                      <span className="text-sm font-extrabold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">
-                        ₹{service.price}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8 text-slate-400 text-xs">
@@ -443,6 +486,27 @@ export const ShopDetailModal: React.FC<ShopDetailModalProps> = ({
             </div>
           )}
         </div>
+
+        {/* Sticky Bottom Bar for Cart Checkout */}
+        {cartItemCount > 0 && (
+          <div className="p-4 bg-slate-900 text-white border-t border-slate-800 flex items-center justify-between z-30">
+            <div>
+              <div className="text-xs text-slate-400 font-semibold">{cartItemCount} Items Selected</div>
+              <div className="text-base font-black text-white">Total: <span className="text-brand-400">₹{cartSubtotal}</span></div>
+            </div>
+
+            <Button
+              onClick={() => {
+                onClose();
+                if (onOpenCheckout) onOpenCheckout();
+              }}
+              className="bg-brand-500 hover:bg-brand-600 text-white font-extrabold text-xs py-2.5 px-5 rounded-xl shadow-lg shadow-brand-500/25 flex items-center gap-2"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>PROCEED TO ORDER</span>
+            </Button>
+          </div>
+        )}
       </div>
     </Modal>
   );

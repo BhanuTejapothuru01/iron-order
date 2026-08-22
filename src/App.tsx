@@ -8,51 +8,81 @@ import {
   Map as MapIcon,
   List as ListIcon,
   Shirt,
-  Truck,
-  ShieldCheck,
-  RotateCcw,
   SlidersHorizontal,
   ChevronDown,
-  User,
   LogOut,
   Plus,
-  Store
+  ShoppingBag,
+  Bell
 } from 'lucide-react';
-import type { Shop, DistanceBand } from './types';
+import type { Shop, DistanceBand, Order } from './types';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useNearbyShops } from './hooks/useNearbyShops';
 import { useAuth } from './features/auth/AuthContext';
+import { useCart } from './hooks/useCart';
+import { useOrders } from './hooks/useOrders';
+import { useNotifications } from './hooks/useNotifications';
+
 import { MapView } from './components/map/MapView';
 import { ShopCard } from './components/shop/ShopCard';
 import { ShopDetailModal } from './components/shop/ShopDetailModal';
 import { AuthModal } from './features/auth/AuthModal';
 import { ShopRegistrationModal } from './components/shop/ShopRegistrationModal';
+import { CheckoutModal } from './features/orders/CheckoutModal';
+import { OrderConfirmationModal } from './features/orders/OrderConfirmationModal';
+import { OrderTrackingModal } from './features/orders/OrderTrackingModal';
+import { CustomerOrdersView } from './features/orders/CustomerOrdersView';
+import { ShopOwnerDashboard } from './features/shop-owner/ShopOwnerDashboard';
+import { AdminDashboard } from './features/admin/AdminDashboard';
+import { ReviewModal } from './features/orders/ReviewModal';
+
 import { Button } from './components/ui/Button';
 import { searchLocations } from './lib/geocodingService';
 
 export function App() {
   const { location, isLocating, isGpsActive, requestBrowserLocation, setManualLocation } = useGeolocation();
   const { shops, isLoading, refetch } = useNearbyShops(location.latitude, location.longitude, 20);
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, switchRole } = useAuth();
+
+  // Marketplace Hooks
+  const cart = useCart();
+  const { orders: customerOrders, isLoading: isLoadingOrders, placeOrder, updatePaymentStatus: updateOrderPaymentStatus } = useOrders(
+    user?.id || 'usr-customer-1',
+    'customer'
+  );
+  const { notifications, unreadCount, markAsRead } = useNotifications(user?.id || 'usr-customer-1');
+
+  // Navigation View State
+  const [activeView, setActiveView] = useState<'search' | 'my_orders' | 'shop_dashboard' | 'admin_dashboard'>('search');
 
   // Search & Filters State
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedDistanceBand, setSelectedDistanceBand] = useState<DistanceBand | 'all'>('all');
+  const [selectedDistanceBand] = useState<DistanceBand | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'partner' | 'osm'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'ironing' | 'steam_press' | 'dhobi_ghat' | 'dry_clean' | 'laundry'>('all');
-  const [pickupOnly, setPickupOnly] = useState<boolean>(false);
-  const [deliveryOnly, setDeliveryOnly] = useState<boolean>(false);
+  const [pickupOnly] = useState<boolean>(false);
+  const [deliveryOnly] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'price'>('distance');
   const [viewMode, setViewMode] = useState<'split' | 'map' | 'list'>('split');
 
   // Address search box dropdown state
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState<boolean>(false);
+  const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState<boolean>(false);
 
   // Modal States
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState<boolean>(false);
+
+  // Order Flow Modals State
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState<boolean>(false);
+  const [trackingOrder, setTrackingOrder] = useState<Order | null>(null);
+  const [isTrackingOpen, setIsTrackingOpen] = useState<boolean>(false);
+  const [reviewOrder, setReviewOrder] = useState<Order | null>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState<boolean>(false);
 
   // City & Area Selector State
   const [activeCity, setActiveCity] = useState<string>('Bengaluru');
@@ -205,520 +235,635 @@ export function App() {
     setIsDetailModalOpen(true);
   };
 
+  const handlePlaceOrderSubmit = async (orderData: {
+    customer_name: string;
+    customer_phone: string;
+    delivery_address: string;
+    pickup_requested: boolean;
+    delivery_requested: boolean;
+    scheduled_date: string;
+    scheduled_time: string;
+    notes: string;
+    payment_method: any;
+  }) => {
+    if (!cart.activeShop || cart.items.length === 0) return;
+
+    const created = await placeOrder({
+      customer_id: user?.id || 'usr-customer-1',
+      shop_id: cart.activeShop.id,
+      customer_name: orderData.customer_name,
+      customer_phone: orderData.customer_phone,
+      delivery_address: orderData.delivery_address,
+      pickup_requested: orderData.pickup_requested,
+      delivery_requested: orderData.delivery_requested,
+      scheduled_date: orderData.scheduled_date,
+      scheduled_time: orderData.scheduled_time,
+      notes: orderData.notes,
+      payment_method: orderData.payment_method,
+      items: cart.items.map(item => ({
+        service_id: item.service.id,
+        service_name: item.service.service_name,
+        unit_price: item.service.price,
+        quantity: item.quantity
+      }))
+    });
+
+    cart.clearCart();
+    setIsCheckoutOpen(false);
+    setPlacedOrder(created);
+    setIsConfirmationOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
       {/* Top Navbar */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           {/* Logo & Brand */}
-          <div className="flex items-center gap-2.5">
+          <div
+            className="flex items-center gap-2.5 cursor-pointer"
+            onClick={() => setActiveView('search')}
+          >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-500 text-white flex items-center justify-center shadow-lg shadow-brand-500/25">
               <Shirt className="w-6 h-6 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xl font-black tracking-tight bg-gradient-to-r from-slate-900 via-brand-950 to-brand-700 bg-clip-text text-transparent">
-                  Iron
+                  Iron Order
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest bg-brand-50 text-brand-700 px-1.5 py-0.5 rounded-md border border-brand-200">
-                  Steam Press
+                <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                  Marketplace
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
-                Crisp Steam Ironing & Laundromat Locator
+                Local Steam Ironing & Laundromat Marketplace
               </p>
             </div>
           </div>
 
-          {/* Location Selector Bar */}
-          <div className="relative flex-1 max-w-md hidden md:block">
-            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-              <button
-                onClick={requestBrowserLocation}
-                disabled={isLocating}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all ${
-                  isGpsActive
-                    ? 'bg-emerald-500 text-white shadow-emerald-500/25 ring-2 ring-emerald-400/50'
-                    : 'bg-white text-slate-800 hover:bg-slate-50'
-                }`}
-                title="Auto-search shops near your current GPS location"
-              >
-                <Navigation className={`w-3.5 h-3.5 ${isGpsActive ? 'text-white' : 'text-brand-600'} ${isLocating ? 'animate-spin' : ''}`} />
-                <span>{isLocating ? 'Locating...' : isGpsActive ? 'Near Me' : 'GPS'}</span>
-              </button>
-
-              <div className="flex-1 flex items-center gap-1.5 text-xs text-slate-700 truncate px-1 font-semibold">
-                <MapPin className={`w-3.5 h-3.5 ${isGpsActive ? 'text-emerald-500 animate-pulse' : 'text-brand-500'} flex-shrink-0`} />
-                <span className="truncate">{location.addressName || 'Bangalore Center'}</span>
-                {isGpsActive && (
-                  <span className="text-[9px] uppercase font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md flex-shrink-0">
-                    GPS
-                  </span>
-                )}
-              </div>
-
-              <button
-                onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}
-                className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition-colors"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Location Dropdown Menu */}
-            {isAddressDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3.5 z-40 space-y-3 max-h-[80vh] overflow-y-auto w-full md:w-[420px]">
-                {/* Step 1: Select City */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                    <span>1. Select City</span>
-                    <span className="text-brand-600 font-extrabold">{activeCity}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
-                    {PRESET_CITIES.map((cGroup) => (
-                      <button
-                        key={cGroup.city}
-                        onClick={() => setActiveCity(cGroup.city)}
-                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${
-                          activeCity === cGroup.city
-                            ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/25 scale-105'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        <span>{cGroup.icon}</span>
-                        <span>{cGroup.city}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Step 2: Select Area in Active City */}
-                <div className="border-t border-slate-100 pt-2.5 space-y-2">
-                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                    2. Select Area in {activeCity}
-                  </div>
-
-                  {/* Areas Grid for Selected City */}
-                  {(() => {
-                    const currentCityData = PRESET_CITIES.find(c => c.city === activeCity) || PRESET_CITIES[0];
-                    return (
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {currentCityData.areas.map((area) => (
-                          <button
-                            key={area.name}
-                            onClick={() => {
-                              setManualLocation(area.lat, area.lng, `${activeCity} - ${area.name}`);
-                              setIsAddressDropdownOpen(false);
-                            }}
-                            className="text-left p-2 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-brand-50 text-slate-800 hover:text-brand-700 border border-slate-200/80 transition-all flex items-center justify-between group"
-                          >
-                            <span className="truncate">{area.name}</span>
-                            <MapPin className="w-3 h-3 text-slate-400 group-hover:text-brand-500 flex-shrink-0" />
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Custom City or Address Search Box */}
-                <div className="border-t border-slate-100 pt-2.5 space-y-1.5">
-                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                    Or Search Any Custom Address
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder={`Type locality in ${activeCity} or anywhere...`}
-                      value={citySearchInput}
-                      onChange={async (e) => {
-                        const val = e.target.value;
-                        setCitySearchInput(val);
-                        if (val.trim().length >= 2) {
-                          setIsSearchingCity(true);
-                          const res = await searchLocations(`${val} ${activeCity}`);
-                          setCitySearchResults(res);
-                          setIsSearchingCity(false);
-                        } else {
-                          setCitySearchResults([]);
-                        }
-                      }}
-                      className="w-full text-xs px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
-                    />
-                    {isSearchingCity && (
-                      <div className="absolute right-2.5 top-2.5 text-xs text-brand-600 font-bold animate-pulse">
-                        Searching...
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Live Custom Search Results */}
-                  {citySearchResults.length > 0 && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-1 max-h-36 overflow-y-auto space-y-1 shadow-inner">
-                      {citySearchResults.map((res, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setManualLocation(res.lat, res.lng, res.displayName.split(',')[0]);
-                            setIsAddressDropdownOpen(false);
-                            setCitySearchInput('');
-                            setCitySearchResults([]);
-                          }}
-                          className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors flex items-start gap-1.5"
-                        >
-                          <MapPin className="w-3.5 h-3.5 text-brand-500 mt-0.5 flex-shrink-0" />
-                          <span className="line-clamp-1">{res.displayName}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+          {/* Navigation Role Tabs */}
+          <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+            <button
+              onClick={() => setActiveView('search')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                activeView === 'search' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🔍 Find Shops
+            </button>
+            <button
+              onClick={() => setActiveView('my_orders')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                activeView === 'my_orders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>📦 My Orders</span>
+              {customerOrders.length > 0 && (
+                <span className="bg-brand-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {customerOrders.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveView('shop_dashboard')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                activeView === 'shop_dashboard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🏬 Shop Owner Dashboard
+            </button>
+            <button
+              onClick={() => setActiveView('admin_dashboard')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                activeView === 'admin_dashboard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🛡️ Admin Console
+            </button>
           </div>
 
-          {/* Action CTAs & Auth Controls */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={requestBrowserLocation}
-              className="md:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
-              title="Locate me"
-            >
-              <Navigation className="w-4 h-4 text-brand-600" />
-            </button>
+          {/* Location Selector Bar */}
+          {activeView === 'search' && (
+            <div className="relative flex-1 max-w-md hidden md:block">
+              <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                <button
+                  onClick={requestBrowserLocation}
+                  disabled={isLocating}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all ${
+                    isGpsActive
+                      ? 'bg-emerald-500 text-white shadow-emerald-500/25 ring-2 ring-emerald-400/50'
+                      : 'bg-white text-slate-800 hover:bg-slate-50'
+                  }`}
+                  title="Auto-search shops near your current GPS location"
+                >
+                  <Navigation className={`w-3.5 h-3.5 ${isGpsActive ? 'text-white' : 'text-brand-600'} ${isLocating ? 'animate-spin' : ''}`} />
+                  <span>{isLocating ? 'Locating...' : isGpsActive ? 'Near Me' : 'GPS'}</span>
+                </button>
 
-            {user ? (
-              <div className="flex items-center gap-2">
-                {role === 'owner' && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => setIsRegistrationModalOpen(true)}
-                    leftIcon={<Plus className="w-3.5 h-3.5" />}
-                  >
-                    Register Shop
-                  </Button>
-                )}
-
-                <div className="hidden sm:flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 text-xs">
-                  <div className="w-6 h-6 rounded-lg bg-brand-600 text-white flex items-center justify-center font-bold">
-                    {role === 'owner' ? <Store className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-                  </div>
-                  <span className="font-bold text-slate-800 max-w-[100px] truncate">{user.full_name || 'User'}</span>
-                  <span className="text-[10px] bg-brand-100 text-brand-800 font-bold px-1.5 py-0.5 rounded-md uppercase">
-                    {role}
-                  </span>
+                <div className="flex-1 flex items-center gap-1.5 text-xs text-slate-700 truncate px-1 font-semibold">
+                  <MapPin className={`w-3.5 h-3.5 ${isGpsActive ? 'text-emerald-500 animate-pulse' : 'text-brand-500'} flex-shrink-0`} />
+                  <span className="truncate">{location.addressName || 'Bangalore Center'}</span>
+                  {isGpsActive && (
+                    <span className="text-[9px] uppercase font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md flex-shrink-0">
+                      GPS
+                    </span>
+                  )}
                 </div>
 
                 <button
-                  onClick={() => logout()}
-                  className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 transition-colors"
-                  title="Sign out"
+                  onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}
+                  className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition-colors"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <ChevronDown className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Location Dropdown Menu */}
+              {isAddressDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3.5 z-40 space-y-3 max-h-[80vh] overflow-y-auto w-full md:w-[420px]">
+                  {/* Step 1: Select City */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                      <span>1. Select City</span>
+                      <span className="text-brand-600 font-extrabold">{activeCity}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+                      {PRESET_CITIES.map((cGroup) => (
+                        <button
+                          key={cGroup.city}
+                          onClick={() => setActiveCity(cGroup.city)}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${
+                            activeCity === cGroup.city
+                              ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/25 scale-105'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          <span>{cGroup.icon}</span>
+                          <span>{cGroup.city}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Step 2: Select Area in Active City */}
+                  <div className="border-t border-slate-100 pt-2.5 space-y-2">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                      2. Select Area in {activeCity}
+                    </div>
+
+                    {/* Areas Grid for Selected City */}
+                    {(() => {
+                      const currentCityData = PRESET_CITIES.find(c => c.city === activeCity) || PRESET_CITIES[0];
+                      return (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {currentCityData.areas.map((area) => (
+                            <button
+                              key={area.name}
+                              onClick={() => {
+                                setManualLocation(area.lat, area.lng, `${activeCity} - ${area.name}`);
+                                setIsAddressDropdownOpen(false);
+                              }}
+                              className="text-left p-2 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-brand-50 text-slate-800 hover:text-brand-700 border border-slate-200/80 transition-all flex items-center justify-between group"
+                            >
+                              <span className="truncate">{area.name}</span>
+                              <MapPin className="w-3 h-3 text-slate-400 group-hover:text-brand-500 flex-shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Custom City or Address Search Box */}
+                  <div className="border-t border-slate-100 pt-2.5 space-y-1.5">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                      Or Search Any Custom Address
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder={`Type locality in ${activeCity} or anywhere...`}
+                        value={citySearchInput}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          setCitySearchInput(val);
+                          if (val.trim().length >= 2) {
+                            setIsSearchingCity(true);
+                            const res = await searchLocations(`${val} ${activeCity}`);
+                            setCitySearchResults(res);
+                            setIsSearchingCity(false);
+                          } else {
+                            setCitySearchResults([]);
+                          }
+                        }}
+                        className="w-full text-xs px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                      />
+                      {isSearchingCity && (
+                        <div className="absolute right-2.5 top-2.5 text-xs text-brand-600 font-bold animate-pulse">
+                          Searching...
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Live Custom Search Results */}
+                    {citySearchResults.length > 0 && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-1 max-h-36 overflow-y-auto space-y-1 shadow-inner">
+                        {citySearchResults.map((res, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              setManualLocation(res.lat, res.lng, res.displayName.split(',')[0]);
+                              setIsAddressDropdownOpen(false);
+                              setCitySearchInput('');
+                              setCitySearchResults([]);
+                            }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors flex items-start gap-1.5"
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-brand-500 mt-0.5 flex-shrink-0" />
+                            <span className="line-clamp-1">{res.displayName}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Right Action Controls: Cart, Notifications, Auth */}
+          <div className="flex items-center gap-2">
+            {/* Cart Button */}
+            {cart.itemCount > 0 && (
+              <button
+                onClick={() => setIsCheckoutOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs shadow-md shadow-brand-500/25 transition-all hover:scale-105"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>₹{cart.subtotal}</span>
+                <span className="bg-white text-brand-700 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {cart.itemCount}
+                </span>
+              </button>
+            )}
+
+            {/* Notifications Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors relative"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center animate-bounce">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notifications Dropdown */}
+              {isNotifDropdownOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 space-y-2 max-h-80 overflow-y-auto">
+                  <div className="flex items-center justify-between text-xs font-bold border-b border-slate-100 pb-2">
+                    <span>Notifications</span>
+                    <span className="text-[10px] text-brand-600 font-extrabold">{notifications.length} Total</span>
+                  </div>
+                  {notifications.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => markAsRead(n.id)}
+                          className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                            n.is_read ? 'bg-slate-50 border-slate-100 text-slate-600' : 'bg-brand-50/50 border-brand-200 text-slate-900 font-semibold'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center justify-between">
+                            <span>{n.title}</span>
+                            <span className="text-[9px] text-slate-400 font-normal">
+                              {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 mt-0.5">{n.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-xs text-slate-400">No notifications yet.</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Role Switcher for Testing Marketplace */}
+            <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[10px] font-extrabold">
+              <button
+                onClick={() => { switchRole('customer'); setActiveView('search'); }}
+                className={`px-2 py-1 rounded-lg ${role === 'customer' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                Customer
+              </button>
+              <button
+                onClick={() => { switchRole('owner'); setActiveView('shop_dashboard'); }}
+                className={`px-2 py-1 rounded-lg ${role === 'owner' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                Owner
+              </button>
+              <button
+                onClick={() => { switchRole('admin'); setActiveView('admin_dashboard'); }}
+                className={`px-2 py-1 rounded-lg ${role === 'admin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                Admin
+              </button>
+            </div>
+
+            {/* Auth / Register Partner CTA */}
+            <button
+              onClick={() => setIsRegistrationModalOpen(true)}
+              className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 font-bold text-xs hover:bg-brand-100 transition-colors border border-brand-200"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Register Shop</span>
+            </button>
+
+            {user ? (
+              <button
+                onClick={logout}
+                className="p-2 text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             ) : (
-              <Button size="sm" variant="secondary" onClick={() => setIsAuthModalOpen(true)}>
-                Partner Login
+              <Button
+                onClick={() => setIsAuthModalOpen(true)}
+                size="sm"
+                className="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs"
+              >
+                Sign In
               </Button>
             )}
           </div>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-        {/* Search & Filter Header Control Panel */}
-        <section className="glass-panel p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-200/80 space-y-4">
-          <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
-            {/* Search Input Box */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search ironing shops by name, location, or service (e.g. Saree Press)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-xs sm:text-sm pl-10 pr-4 py-3 rounded-2xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm font-medium"
-              />
-              {searchQuery && (
+      {/* Main App Body Views */}
+      {activeView === 'my_orders' && (
+        <CustomerOrdersView
+          orders={customerOrders}
+          isLoading={isLoadingOrders}
+          onTrackOrder={(o) => { setTrackingOrder(o); setIsTrackingOpen(true); }}
+          onBackToSearch={() => setActiveView('search')}
+        />
+      )}
+
+      {activeView === 'shop_dashboard' && (
+        <ShopOwnerDashboard
+          ownerId={user?.id || 'usr-owner-1'}
+          onBackToSearch={() => setActiveView('search')}
+        />
+      )}
+
+      {activeView === 'admin_dashboard' && (
+        <AdminDashboard onBackToSearch={() => setActiveView('search')} />
+      )}
+
+      {activeView === 'search' && (
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6">
+          {/* Hero Banner & Search Bar */}
+          <div className="bg-gradient-to-r from-slate-900 via-brand-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-500/20 via-transparent to-transparent pointer-events-none" />
+
+            <div className="max-w-2xl relative z-10 space-y-4">
+              <div className="inline-flex items-center gap-2 bg-brand-500/20 text-brand-300 border border-brand-500/30 px-3 py-1 rounded-full text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Instant Ironing & Steam Press Marketplace</span>
+              </div>
+
+              <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+                Find Local Ironing Shops & Order Steam Press Online
+              </h1>
+              <p className="text-slate-300 text-xs sm:text-sm font-medium">
+                Connect directly with verified local steam press providers, dhobi ghats, and laundromats. Get doorstep pickup & crisp turnaround.
+              </p>
+
+              {/* Main Search Input */}
+              <div className="relative pt-2">
+                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-5 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search shop name, locality, or service (e.g. Steam Press, Saree, Suit)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full text-sm pl-12 pr-4 py-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-400 font-medium shadow-inner"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar Controls */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
+            {/* Category Chips */}
+            <div className="flex items-center gap-2 overflow-x-auto w-full lg:w-auto pb-1 lg:pb-0 no-scrollbar">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex-shrink-0 flex items-center gap-1">
+                <Filter className="w-3.5 h-3.5" /> Filter:
+              </span>
+              {[
+                { id: 'all', label: 'All Shops', icon: '🏪' },
+                { id: 'steam_press', label: 'Steam Press', icon: '♨️' },
+                { id: 'ironing', label: 'Ironing', icon: '👔' },
+                { id: 'dhobi_ghat', label: 'Dhobi Ghat', icon: '🏛️' },
+                { id: 'dry_clean', label: 'Dry Clean', icon: '✨' },
+                { id: 'laundry', label: 'Laundromat', icon: '🧺' },
+              ].map((cat) => (
                 <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 hover:text-slate-700"
+                  key={cat.id}
+                  onClick={() => setTypeFilter(cat.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${
+                    typeFilter === cat.id
+                      ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/25 scale-105'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
                 >
-                  Clear
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
                 </button>
-              )}
+              ))}
             </div>
 
-            {/* View Mode Switchers */}
-            <div className="flex items-center gap-2 self-end lg:self-auto">
-              <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200 flex items-center gap-1">
+            {/* View Mode & Sort Controls */}
+            <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button
                   onClick={() => setViewMode('split')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                    viewMode === 'split' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    viewMode === 'split' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
                   }`}
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Split View</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('map')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                    viewMode === 'map' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <MapIcon className="w-3.5 h-3.5" />
-                  <span>Map</span>
+                  <span className="hidden sm:inline">Split</span>
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                    viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
                   }`}
                 >
                   <ListIcon className="w-3.5 h-3.5" />
-                  <span>List</span>
+                  <span className="hidden sm:inline">List</span>
                 </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    viewMode === 'map' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  <MapIcon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Map</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-bold hidden sm:inline">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="distance">Nearest Distance</option>
+                  <option value="rating">Top Rated</option>
+                  <option value="price">Lowest Price</option>
+                </select>
               </div>
             </div>
           </div>
 
-          {/* Filter Chips Bar */}
-          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-            {/* Distance Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              <span className="text-slate-400 font-semibold mr-1 flex items-center gap-1">
-                <Filter className="w-3.5 h-3.5" /> Distance:
-              </span>
-              {[
-                { id: 'all', label: 'All Distances' },
-                { id: 'walking', label: 'Walking (<1 km)' },
-                { id: 'nearby', label: 'Nearby (1-5 km)' },
-                { id: 'extended', label: 'Extended (>5 km)' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setSelectedDistanceBand(tab.id as any)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                    selectedDistanceBand === tab.id
-                      ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/20'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+          {/* Main Layout Display (Split / Map / List) */}
+          {isLoading ? (
+            <div className="text-center py-24 text-slate-400 text-sm">
+              Finding real local ironing shops & dhobi ghats near you...
             </div>
-
-            {/* Shop Source Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              <span className="text-slate-400 font-semibold mr-1 flex items-center gap-1">
-                <Store className="w-3.5 h-3.5" /> Source:
-              </span>
-              {[
-                { id: 'all', label: 'All Shops' },
-                { id: 'partner', label: 'Verified Partners' },
-                { id: 'osm', label: 'OSM Real Shops' },
-              ].map((srcTab) => (
-                <button
-                  key={srcTab.id}
-                  onClick={() => setSourceFilter(srcTab.id as any)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                    sourceFilter === srcTab.id
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  {srcTab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Shop Type / Category Filter */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              <span className="text-slate-400 font-semibold mr-1 flex items-center gap-1">
-                <Shirt className="w-3.5 h-3.5" /> Service:
-              </span>
-              {[
-                { id: 'all', label: 'All Types' },
-                { id: 'steam_press', label: '♨️ Steam Press' },
-                { id: 'ironing', label: '👔 Ironing' },
-                { id: 'dhobi_ghat', label: '🏛️ Dhobi Ghat' },
-                { id: 'dry_clean', label: '✨ Dry Clean' },
-                { id: 'laundry', label: '🧺 Laundry' },
-              ].map((typeTab) => (
-                <button
-                  key={typeTab.id}
-                  onClick={() => setTypeFilter(typeTab.id as any)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                    typeFilter === typeTab.id
-                      ? 'bg-brand-600 text-white shadow-sm'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  {typeTab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Capability Toggles & Sort */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setPickupOnly(!pickupOnly)}
-                className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all ${
-                  pickupOnly
-                    ? 'bg-blue-50 text-blue-700 border-2 border-blue-500'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <Truck className="w-3.5 h-3.5" />
-                <span>Pickup</span>
-              </button>
-
-              <button
-                onClick={() => setDeliveryOnly(!deliveryOnly)}
-                className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all ${
-                  deliveryOnly
-                    ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-500'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Delivery</span>
-              </button>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-1.5 rounded-xl font-semibold bg-white border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="distance">Sort by Distance</option>
-                <option value="rating">Sort by Highest Rating</option>
-                <option value="price">Sort by Lowest Price</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        {/* Content Layout Grid (Map & Shop List) */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[550px]">
-          {/* Map Column */}
-          {(viewMode === 'split' || viewMode === 'map') && (
-            <div className={`${viewMode === 'map' ? 'lg:col-span-12' : 'lg:col-span-6 xl:col-span-7'} h-[450px] lg:h-[650px] sticky top-20`}>
-              <MapView
-                userLocation={location}
-                shops={filteredShops}
-                selectedShopId={selectedShop?.id}
-                onSelectShop={handleSelectShop}
-              />
-            </div>
-          )}
-
-          {/* Shop List Cards Column */}
-          {(viewMode === 'split' || viewMode === 'list') && (
-            <div className={`${viewMode === 'list' ? 'lg:col-span-12' : 'lg:col-span-6 xl:col-span-5'} space-y-4`}>
-              <div className="flex items-center justify-between px-1">
-                <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                  <span>Ironing Shops Nearby</span>
-                  <span className="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">
-                    {filteredShops.length}
-                  </span>
-                </h2>
-
-                <button
-                  onClick={() => refetch()}
-                  className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Refresh
-                </button>
-              </div>
-
-              {/* Loading State Skeleton */}
-              {isLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((n) => (
-                    <div key={n} className="h-44 rounded-2xl bg-slate-200 animate-pulse" />
-                  ))}
-                </div>
-              ) : filteredShops.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredShops.map((shop: Shop) => (
-                    <ShopCard
-                      key={shop.id}
-                      shop={shop}
-                      onSelect={handleSelectShop}
-                    />
-                  ))}
-                </div>
-              ) : (
-                /* Empty Results Placeholder */
-                <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    <Sparkles className="w-6 h-6" />
+          ) : filteredShops.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Shop Cards Column */}
+              {(viewMode === 'split' || viewMode === 'list') && (
+                <div className={`${viewMode === 'split' ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-4`}>
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Found {filteredShops.length} Local Ironing Shops
+                    </span>
                   </div>
-                  <h3 className="text-base font-bold text-slate-800">No Ironing Shops Found</h3>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    No shops match your current search query or active filter settings. Try clearing distance or delivery filters.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedDistanceBand('all');
-                      setPickupOnly(false);
-                      setDeliveryOnly(false);
-                    }}
-                  >
-                    Reset All Filters
-                  </Button>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {filteredShops.map((shop) => (
+                      <ShopCard
+                        key={shop.id}
+                        shop={shop}
+                        onSelect={handleSelectShop}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Right Map View Column */}
+              {(viewMode === 'split' || viewMode === 'map') && (
+                <div className={`${viewMode === 'split' ? 'lg:col-span-6' : 'lg:col-span-12'} sticky top-24 h-[600px] rounded-3xl overflow-hidden shadow-md border border-slate-200`}>
+                  <MapView
+                    userLocation={location}
+                    shops={filteredShops}
+                    selectedShopId={selectedShop?.id}
+                    onSelectShop={handleSelectShop}
+                  />
                 </div>
               )}
             </div>
+          ) : (
+            <div className="text-center py-24 bg-white rounded-3xl border border-slate-200 p-8 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <Search className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">No Ironing Shops Found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Try searching another locality or resetting your filters.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSearchQuery('');
+                  setTypeFilter('all');
+                  setSourceFilter('all');
+                }}
+                className="bg-brand-600 hover:bg-brand-700 text-white font-bold"
+              >
+                Reset Search Filters
+              </Button>
+            </div>
           )}
-        </section>
-      </main>
+        </main>
+      )}
 
-      {/* Shop Detail Modal Dialog */}
+      {/* Modals Integration */}
       <ShopDetailModal
         shop={selectedShop}
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
-        onReviewAdded={() => refetch()}
+        onAddToCart={(shop, service) => cart.addItem(shop, service)}
+        onUpdateQty={(serviceId, qty) => cart.updateQuantity(serviceId, qty)}
+        getQty={(serviceId) => cart.getItemQuantity(serviceId)}
+        cartSubtotal={cart.subtotal}
+        cartItemCount={cart.itemCount}
+        onOpenCheckout={() => setIsCheckoutOpen(true)}
       />
 
-      {/* Partner Login & Sign Up Auth Modal */}
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        shop={cart.activeShop}
+        items={cart.items}
+        subtotal={cart.subtotal}
+        onOrderPlaced={handlePlaceOrderSubmit}
+      />
+
+      <OrderConfirmationModal
+        isOpen={isConfirmationOpen}
+        onClose={() => setIsConfirmationOpen(false)}
+        order={placedOrder}
+        onTrackOrder={(order) => { setTrackingOrder(order); setIsTrackingOpen(true); }}
+      />
+
+      <OrderTrackingModal
+        isOpen={isTrackingOpen}
+        onClose={() => setIsTrackingOpen(false)}
+        order={trackingOrder}
+        onPayShop={async (orderId) => {
+          await updateOrderPaymentStatus(orderId, 'paid_to_shop');
+          if (trackingOrder) {
+            setTrackingOrder({ ...trackingOrder, payment_status: 'paid_to_shop' });
+          }
+        }}
+        onOpenReview={(order) => { setReviewOrder(order); setIsReviewOpen(true); }}
+      />
+
+      <ReviewModal
+        isOpen={isReviewOpen}
+        onClose={() => setIsReviewOpen(false)}
+        order={reviewOrder}
+        onReviewSubmitted={() => refetch()}
+      />
+
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        initialMode="login"
-        initialRole="owner"
       />
 
-      {/* Shop Owner Registration Modal */}
       <ShopRegistrationModal
         isOpen={isRegistrationModalOpen}
         onClose={() => setIsRegistrationModalOpen(false)}
         onShopCreated={() => refetch()}
       />
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-12 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© {new Date().getFullYear()} Iron Steam Press Locator. All rights reserved.</p>
-          <div className="flex items-center gap-4 text-slate-600 font-semibold">
-            <span>Fast Steam Ironing</span>
-            <span>•</span>
-            <span>Doorstep Pickup</span>
-            <span>•</span>
-            <span>Local Vendors</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
